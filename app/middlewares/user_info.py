@@ -16,11 +16,15 @@ from app.services.user_profile import UserProfileService
 # import utils
 from app.utils.misc import get_user_info_from_google
 
-
 settings = get_settings()
 
 MODE = settings.MODE
-SKIP_AUTH_PATHS = {"/health", "/auth/google/callback", "/api/v1/auth/google/callback", "/server/api/v1/auth/google/callback"}
+SKIP_AUTH_PATHS = {
+    "/health",
+    "/auth/google/callback",
+    "/api/v1/auth/google/callback",
+    "/server/api/v1/auth/google/callback",
+}
 access_token_header = (
     "X-Amzn-Oidc-Accesstoken" if MODE == "production" else "X-Auth-Request-Access-Token"
 )
