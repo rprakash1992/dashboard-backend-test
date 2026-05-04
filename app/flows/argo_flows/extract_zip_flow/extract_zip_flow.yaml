@@ -1,0 +1,95 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: extract-zip-workflow
+  namespace: argo
+spec:
+  entrypoint: run
+  arguments:
+    parameters:
+      - name: loggedin_user_id
+      - name: selected_workspace_id
+      - name: input_item_id
+      - name: output_item_id
+
+  templates:
+    - name: run
+      inputs:
+        parameters:
+          - name: loggedin_user_id
+          - name: selected_workspace_id
+          - name: input_item_id
+          - name: output_item_id
+      container:
+        # image: 205207316191.dkr.ecr.us-east-1.amazonaws.com/dashboard-backend
+        image: rprakash262/dashboard-backend:latest
+        # imagePullPolicy: Never
+        imagePullPolicy: Always
+        command: ["python", "-m", "app.flows.argo_flows.extract_zip_flow.extract_zip_flow"]
+        env:
+          # ── Flow parameters ────────────────────────────────────────────────
+          - name: loggedin_user_id
+            value: "{{inputs.parameters.loggedin_user_id}}"
+          - name: selected_workspace_id
+            value: "{{inputs.parameters.selected_workspace_id}}"
+          - name: input_item_id
+            value: "{{inputs.parameters.input_item_id}}"
+          - name: output_item_id
+            value: "{{inputs.parameters.output_item_id}}"
+
+          # ── Dashboard database ─────────────────────────────────────────────
+          - name: DB_HOST
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: DB_HOST
+          - name: DB_PORT
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: DB_PORT
+          - name: DB_NAME
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: DB_NAME
+          - name: DB_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: DB_USERNAME
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: DB_PASSWORD
+
+          # ── AWS / S3 ───────────────────────────────────────────────────────
+          - name: AWS_S3_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: AWS_S3_ACCESS_KEY
+          - name: AWS_S3_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: AWS_S3_SECRET_KEY
+          - name: AWS_S3_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: AWS_S3_BUCKET
+          - name: AWS_REGION
+            valueFrom:
+              secretKeyRef:
+                name: dashboard-app-secrets
+                key: AWS_REGION
+
+        volumeMounts:
+          - name: work-dir
+            mountPath: /app/work_dir
+
+      volumes:
+        - name: work-dir
+          emptyDir: {}

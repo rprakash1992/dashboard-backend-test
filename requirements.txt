@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+resend
+python-dotenv
+python-multipart
+boto3
+sqlalchemy
+websockets
+pydantic_settings
+PyJWT
+psycopg2-binary
+watchfiles
+openai
+httpx
+pyinstaller # used for creating backend.exe to run inside electron app

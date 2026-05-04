@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+# env/
+# ENV/
+
+# Dev/test artifacts
+*.db
+test.db
+test_*.py
+*_test.py
+
+# Temp/scratch files
+"main copy.py"
+work_dir/
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / env files (should never be baked in)
+# *.env
+# .env*
+.env
