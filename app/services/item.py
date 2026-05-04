@@ -276,6 +276,51 @@ class ItemService:
     #         children_ids, selected_item_type
     #     )
 
+    def _fetch_user_profile_items(
+        self, selected_workspace_id, loggedin_user_id
+    ) -> List[ItemSchema]:
+        # If item_type is "user_profile" and selected_workspace is "admin" and role of loggedin user is "system_administrator"
+        # then we need to return all user profile, because system_administrator can change the profile status to active/inactive
+
+        # get id of system_administrator_workspace item
+        admin_workspace_item = self.repo.get_item_by_system_key(
+            "system_administrator_workspace"
+        )
+        admin_workspace_id = admin_workspace_item.id
+
+        # get id of system_administrator role
+        system_admin_role_item = self.repo.get_item_by_system_key(
+            "system_administrator_role"
+        )
+        system_admin_role_item_id = system_admin_role_item.id
+
+        # check if role of loggedin user in selected workspace is of system administrator
+        relation_response = (
+            self.relation_repo.get_relation_by_sourceid_targetid_relation(
+                selected_workspace_id,
+                loggedin_user_id,
+                f"role.{system_admin_role_item_id}",
+            )
+        )
+        is_loggedin_user_a_system_administrator = len(relation_response) > 0
+        is_selected_ws_system_admin_ws = selected_workspace_id == admin_workspace_id
+
+        if is_selected_ws_system_admin_ws and is_loggedin_user_a_system_administrator:
+            # means selected workspace is "system_administrator_workspace"
+            # and role of loggedin user is "system_administrator_role"
+            all_user_profiles = self.repo.get_items_by_item_type(ItemType.USERPROFILE)
+            return all_user_profiles
+        else:
+            relation_response = (
+                self.relation_repo.get_relations_by_source_id_ilike_relation(
+                    selected_workspace_id, "%role%"
+                )
+            )
+            target_user_profile_ids = [
+                relation.target_id for relation in relation_response
+            ]
+            return self.repo.get_items_by_ids(target_user_profile_ids)
+
     def fetch_dashboard_items(
         self,
         selected_workspace_id: str,
@@ -294,53 +339,21 @@ class ItemService:
                 status_code=403, detail="Unauthorized: Not permitted to read items."
             )
 
+        # if selected_item_type == ItemType.USERPROFILE:
+        #     return self._fetch_user_profile_items(
+        #         selected_workspace_id, loggedin_user_id
+        #     )
+        
         if selected_item_type == ItemType.USERPROFILE:
-            # If item_type is "user_profile" and selected_workspace is "admin" and role of loggedin user is "system_administrator"
-            # then we need to return all user profile, because system_administrator can change the profile status to active/inactive
-
-            # get id of system_administrator_workspace item
-            admin_workspace_item = self.repo.get_item_by_system_key(
-                "system_administrator_workspace"
-            )
-            admin_workspace_id = admin_workspace_item.id
-
-            # get id of system_administrator role
-            system_admin_role_item = self.repo.get_item_by_system_key(
-                "system_administrator_role"
-            )
-            system_admin_role_item_id = system_admin_role_item.id
-
-            # check if role of loggedin user in selected workspace is of system administrator
             relation_response = (
-                self.relation_repo.get_relation_by_sourceid_targetid_relation(
-                    selected_workspace_id,
-                    loggedin_user_id,
-                    f"role.{system_admin_role_item_id}",
+                self.relation_repo.get_relations_by_source_id_ilike_relation(
+                    selected_workspace_id, "%role%"
                 )
             )
-            is_loggedin_user_a_system_administrator = len(relation_response) > 0
-            is_selected_ws_system_admin_ws = selected_workspace_id == admin_workspace_id
-
-            if (
-                is_selected_ws_system_admin_ws
-                and is_loggedin_user_a_system_administrator
-            ):
-                # means selected workspace is "system_administrator_workspace"
-                # and role of loggedin user is "system_administrator_role"
-                all_user_profiles = self.repo.get_items_by_item_type(
-                    ItemType.USERPROFILE
-                )
-                return all_user_profiles
-            else:
-                relation_response = (
-                    self.relation_repo.get_relations_by_source_id_ilike_relation(
-                        selected_workspace_id, "%role%"
-                    )
-                )
-                target_user_profile_ids = [
-                    relation.target_id for relation in relation_response
-                ]
-                return self.repo.get_items_by_ids(target_user_profile_ids)
+            target_user_profile_ids = [
+                relation.target_id for relation in relation_response
+            ]
+            return self.repo.get_items_by_ids(target_user_profile_ids)
 
         child_relations = self.relation_repo.get_relations_by_source_id_and_relation(
             selected_workspace_id, RelationType.CHILD

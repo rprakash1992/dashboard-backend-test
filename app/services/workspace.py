@@ -110,10 +110,11 @@ class WorkspaceService:
         self,
         selected_workspace_id: str,
         loggedin_user_id: str,
+        workspace_id: str,
         user_id_to_add: str,
         role_id_to_assign: str,
     ) -> ItemSchema:
-        role_service = RoleService(selected_workspace_id, loggedin_user_id, self.db)
+        role_service = RoleService(workspace_id, loggedin_user_id, self.db)
         has_add_user_permission = role_service.has_add_user_to_workspace_permission()
 
         if not has_add_user_permission:
@@ -123,7 +124,7 @@ class WorkspaceService:
             )
 
         new_relation = RelationSchema(
-            source_id=selected_workspace_id,
+            source_id=workspace_id,
             target_id=user_id_to_add,
             relation=f"role.{role_id_to_assign}",
         )
@@ -170,3 +171,31 @@ class WorkspaceService:
             )
 
         return True
+    
+    
+    def fetch_workspace_users(
+        self,
+        selected_workspace_id: str,
+        loggedin_user_id: str,
+        workspace_id: str,
+    ) -> List[ItemSchema]:
+        role_service = RoleService(workspace_id, loggedin_user_id, self.db)
+        has_read_items_permission = (
+            role_service.has_read_items_permission()
+        )
+
+        if not has_read_items_permission:
+            raise HTTPException(
+                status_code=403,
+                detail="You don't have the permission to read items of this workspace.",
+            )
+            
+        relation_response = (
+            self.relation_repo.get_relations_by_source_id_ilike_relation(
+                workspace_id, "%role%"
+            )
+        )
+        target_user_profile_ids = [
+            relation.target_id for relation in relation_response
+        ]
+        return self.item_repo.get_items_by_ids(target_user_profile_ids)

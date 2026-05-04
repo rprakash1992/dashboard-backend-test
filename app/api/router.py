@@ -13,7 +13,8 @@ from app.api.routes import (
     workspaces,
     user_profiles,
     chat,
-    auth
+    auth,
+    roles,
 )
 
 api_router = APIRouter()
@@ -32,3 +33,4 @@ api_router.include_router(user_profiles.router, tags=["User-Profiles"])
 api_router.include_router(chat.router, tags=["Chat"])
 api_router.include_router(file_upload.router, tags=["File-Upload"])
 api_router.include_router(auth.router, tags=["Auth"])
+api_router.include_router(roles.router, tags=["Roles"])
