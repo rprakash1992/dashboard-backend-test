@@ -145,7 +145,7 @@ class WorkspaceService:
         workspace_id: str,
         item_id: str,
     ) -> bool:
-        role_service = RoleService(selected_workspace_id, loggedin_user_id, self.db)
+        role_service = RoleService(workspace_id, loggedin_user_id, self.db)
         has_share_item_permission = (
             role_service.has_share_item_to_workspace_permission()
         )
