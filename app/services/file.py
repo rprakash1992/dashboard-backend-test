@@ -57,7 +57,8 @@ class FileService:
 
         if not has_create_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to create file."
+                status_code=403,
+                detail=f"You don't have the permission to create files in this workspace.",
             )
 
         item = NewItemSchema(
@@ -132,7 +133,7 @@ class FileService:
         if not has_read_contents_permission:
             raise HTTPException(
                 status_code=403,
-                detail="Unauthorized: Not permitted to access file contents.",
+                detail=f"You don't have the permission to view file contents in this workspace.",
             )
 
         # check if all the file ids exist in the selected workspace
@@ -164,7 +165,7 @@ class FileService:
         if not has_read_contents_permission:
             raise HTTPException(
                 status_code=403,
-                detail="Unauthorized: Not permitted to access file content.",
+                detail=f"You don't have the permission to view file contents in this workspace.",
             )
 
         return self.repo.get_files_by_field_and_name_field_val(field_name, field_val)
@@ -184,7 +185,8 @@ class FileService:
 
         if not has_update_contents_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to update file."
+                status_code=403,
+                detail=f"You don't have the permission to update file contents in this workspace.",
             )
 
         return self.repo.update_file_field_by_id(file_id, field_name, field_val)
@@ -202,7 +204,8 @@ class FileService:
 
         if not has_update_contents_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to update file."
+                status_code=403,
+                detail=f"You don't have the permission to update file contents in this workspace.",
             )
 
         return self.repo.update_file_record(file)
@@ -215,7 +218,7 @@ class FileService:
         item_id_to: str,
     ) -> bool:
         role_service = RoleService(selected_workspace_id, loggedin_user_id, self.db)
-        has_read_metadata_permission = role_service.has_read_metadata_permission(
+        has_read_metadata_permission = role_service.has_read_items_permission(
             ItemType.FILE
         )
         has_read_contents_permission = role_service.has_read_content_permission(
@@ -234,7 +237,7 @@ class FileService:
         if not has_permission:
             raise HTTPException(
                 status_code=403,
-                detail="Unauthorized: Not authorized to perform this operation.",
+                detail="You don't have the permission to perform this operation.",
             )
 
         items = self.item_repo.get_items_by_ids([item_id])
@@ -302,9 +305,9 @@ class FileService:
     ) -> str:
         role_service = RoleService(selected_workspace_id, loggedin_user_id, self.db)
         has_read_content_permission = role_service.has_read_content_permission(
-            ItemType.FILE
+            ItemType.FILE, "url"
         )
-        has_read_metadata_permission = role_service.has_read_metadata_permission(
+        has_read_metadata_permission = role_service.has_read_items_permission(
             ItemType.FILE
         )
 
@@ -314,7 +317,8 @@ class FileService:
 
         if not has_download_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to download file."
+                status_code=403,
+                detail="You don't have the permission to download file in this workspace.",
             )
 
         item = self.item_repo.get_item_by_id(file_id)
@@ -427,9 +431,9 @@ class FileService:
         output_item = result.get("output_item")
         output_item_id = output_item.id
         job_item_id = result.get("job_item_id")
-        
+
         deployment_id = "extract-zip-workflow"
-        
+
         # Trigger Prefect workflow (asynchronous part)
         flow_run = await self.argo_client_service.trigger_extract_zip_flow(
             deployment_id,
@@ -555,7 +559,7 @@ class FileService:
         output_item = response.get("output_item")
         output_item_id = output_item.id
         output_item_title = output_item.title
-        
+
         deployment_id = "compress-file-workflow"
 
         # run the whole file compression task in background

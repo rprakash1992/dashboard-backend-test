@@ -1,5 +1,6 @@
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Any, Optional
 
 # import repositories
 from app.repositories.database_dashboard.role import RoleRepository
@@ -7,13 +8,13 @@ from app.repositories.database_dashboard.relation import RelationRepository
 from app.repositories.database_dashboard.item import ItemRepository
 
 # import schemas
-from app.schemas.role import RoleAction
-from app.schemas.item import ItemType
-from app.schemas.role import RoleSchema
+# from app.schemas.role import RoleAction
+from app.schemas.item import ItemType, NewItemSchema
+from app.schemas.role import RoleSchema, NewRoleSchema, InsertRoleResponse
 
 
 class RoleService:
-    def __init__(self, selected_workspace_id: str, loggedin_user_id: str, db: Session):
+    def __init__(self, workspace_id: str, user_id: str, db: Session):
         """
         Manages roles and permission of a user in a workspace.
 
@@ -22,8 +23,8 @@ class RoleService:
             user_id (str).
             db (Session): postgres database session.
         """
-        self.workspace_id = selected_workspace_id
-        self.user_id = loggedin_user_id
+        self.workspace_id = workspace_id
+        self.user_id = user_id
         self.repo = RoleRepository(db)
         self.relations_repo = RelationRepository(db)
         self.item_repo = ItemRepository(db)
@@ -33,7 +34,7 @@ class RoleService:
 
     def get_roles(self) -> List[RoleSchema]:
         """
-        Gets the roles list based on what is the role of loggedin user in the selected workspace.
+        Gets the roles list based on what is the role of user in the workspace.
 
         Returns:
             Returns list of roles
@@ -57,342 +58,359 @@ class RoleService:
 
         # Remove first 05 characters from the relation to get the role_id
         role_id = relation.relation[5:]
-
         return self.repo.get_roles_by_id(role_id)
 
-    def has_read_items_permission(self) -> bool:
-        """
-        Checks if a user has the permission to read items in a workspace.
-
-        A user will have permission to read metadata of an item in a workspace if there a role exists for which
-        item_type is "workspace" and action is "read_items".
-
-        Returns:
-            True id user has the required permission, else False
-        """
-        roles = self.get_roles()
-
-        role_found = next(
-            (
-                role
-                for role in roles
-                if role.item_type == ItemType.WORKSPACE
-                and role.action == RoleAction.READ_ITEMS
-            ),
-            None,
-        )
-
-        return True if role_found else False
-
-    def has_read_metadata_permission(self, item_type: ItemType) -> bool:
-        """
-        Checks if a user has the permission to read metadata of an item in a workspace.
-
-        A user will have permission to read metadata of an item in a workspace if there a role exists for which
-        item_type is {item_type} provided in the argument and action is "read_metadata".
-
-        Args:
-            item_type: ItemType enum
-
-        Returns:
-            True id user has the required permission, else False
-        """
-        roles = self.get_roles()
-
-        role_found = next(
+    def _find_role(
+        self,
+        roles: Any,
+        item_type: ItemType,
+        scope: str,
+        field: str,
+        operation: str,
+    ):
+        return next(
             (
                 role
                 for role in roles
                 if role.item_type == item_type
-                and role.action == RoleAction.READ_METADATA
+                and role.scope == scope
+                and role.field == field
+                and getattr(role, operation, None) == True
             ),
             None,
         )
 
-        return True if role_found else False
-
-    def has_read_content_permission(self, item_type: ItemType) -> bool:
-        """
-        Checks if a user has the permission to read contents of an item in a workspace.
-        Here, content refers to the table corresponding to the item_type. For e.g "files" table for item_type = "file"
-
-        A user will have permission to read contents of an item in a workspace if there a role exists for which
-        item_type is {item_type} provided in the argument and action is "read_contents".
-
-        Args:
-            item_type: ItemType enum
-
-        Returns:
-            True id user has the required permission, else False
-        """
-        roles = self.get_roles()
-
-        role_found = next(
-            (
-                role
-                for role in roles
-                if role.item_type == item_type
-                and role.action == RoleAction.READ_CONTENTS
-                and role.sections == ["*"]
-            ),
-            None,
-        )
-
-        return True if role_found else False
-
-    def has_update_content_permission(self, item_type: ItemType) -> bool:
-        """
-        Checks if a user has the permission to update contents of an item in a workspace.
-        Here, content refers to the table corresponding to the item_type. For e.g "files" table for item_type = "file"
-
-        A user will have permission to update content of an item in a workspace if there a role exists for which
-        item_type is {item_type} provided in the argument and action is "update_contents".
-
-        Args:
-            item_type: ItemType enum
-
-        Returns:
-            True id user has the required permission, else False
-        """
-        roles = self.get_roles()
-
-        role_found = next(
-            (
-                role
-                for role in roles
-                if role.item_type == item_type
-                and role.action == RoleAction.UPDATE_CONTENTS
-                and role.sections == ["*"]
-            ),
-            None,
-        )
-
-        return True if role_found else False
-
-    def has_edit_full_metadata_permission(self, item_type: ItemType) -> bool:
-        """
-        Checks if a user has the permission to edit all metadata fields of an item in a workspace.
-
-        A user will have permission to edit all metadata fields of an item in a workspace if there a role exists for which
-        item_type is {item_type} provided in the argument, action is "update_metadata" and sections either contains all the metadata fields
-        such as "title", "description", "image", "tags" or sections = ["*"].
-
-        Args:
-            item_type: Can be either ItemType enum or string value
-
-        Returns:
-            True id user has the required permission, else False
-        """
-        roles = self.get_roles()
-
-        has_permission = False
-
-        for role in roles:
-            role_item_type = role.item_type
-            role_action = role.action
-            role_sections = role.sections
-            has_all_sections_permission = (
-                ("title" in role_sections)
-                and ("description" in role_sections)
-                and ("image" in role_sections)
-                and ("tags" in role_sections)
-            ) or role_sections == ["*"]
-            has_permission = (
-                role_item_type == item_type
-                and role_action == RoleAction.UPDATE_METADATA
-                and has_all_sections_permission
-            )
-            if has_permission:
-                break
-
-        return has_permission
-
-    def has_edit_metadata_permission(
-        self, item_type: ItemType, item_metadata_field_name: str
+    def has_create_title_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
     ) -> bool:
-        """
-        Checks if a user has the permission to edit a metadata field of an item in a workspace.
-
-        A user will have permission to edit a metadata field of an item in a workspace if there is a role exists for which
-        item_type is {item_type} provided in the argument, action is "update_metadata" and sections contains the {item_metadata_field_name} provided in the argument.
-
-        Args:
-            item_type: Can be either ItemType enum or string value
-
-        Returns:
-            True id user has the required permission, else False
-        """
-        roles = self.get_roles()
-
-        role_found = next(
-            (
-                role
-                for role in roles
-                if role.item_type == item_type
-                and role.action == RoleAction.UPDATE_METADATA
-                and item_metadata_field_name in role.sections
-            ),
-            None,
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "title", "can_create"
         )
-
         return True if role_found else False
 
-    def has_delete_item_permission(self, item_type: ItemType) -> bool:
-        """
-        Checks if a user has the permission to delete an item in a workspace.
+    def has_read_title_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(_roles, item_type, "metadata", "title", "can_read")
+        return True if role_found else False
 
-        A user will have permission to delete an item in a workspace if there is a role exists for which
-        item_type is {item_type} provided in the argument and action is "delete".
-
-        Args:
-            item_type: ItemType enum
-
-        Returns:
-            True id user has the required permission, else False
-        """
-        roles = self.get_roles()
-
-        role_found = next(
-            (
-                role
-                for role in roles
-                if role.item_type == item_type and role.action == RoleAction.DELETE
-            ),
-            None,
+    def has_update_title_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "title", "can_update"
         )
+        return True if role_found else False
 
+    def has_dalete_title_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "title", "can_delete"
+        )
+        return True if role_found else False
+
+    def has_create_description_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "description", "can_create"
+        )
+        return True if role_found else False
+
+    def has_read_description_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "description", "can_read"
+        )
+        return True if role_found else False
+
+    def has_update_description_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "description", "can_update"
+        )
+        return True if role_found else False
+
+    def has_dalete_description_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "description", "can_delete"
+        )
+        return True if role_found else False
+
+    def has_create_image_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "image", "can_create"
+        )
+        return True if role_found else False
+
+    def has_read_image_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(_roles, item_type, "metadata", "image", "can_read")
+        return True if role_found else False
+
+    def has_update_image_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "image", "can_update"
+        )
+        return True if role_found else False
+
+    def has_dalete_image_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "image", "can_delete"
+        )
+        return True if role_found else False
+
+    def has_create_tags_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "tags", "can_create"
+        )
+        return True if role_found else False
+
+    def has_read_tags_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(_roles, item_type, "metadata", "tags", "can_read")
+        return True if role_found else False
+
+    def has_update_tags_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "tags", "can_update"
+        )
+        return True if role_found else False
+
+    def has_dalete_tags_permission(
+        self, item_type: ItemType, roles: Optional[Any] = None
+    ) -> bool:
+        _roles = roles or self.get_roles()
+        role_found = self._find_role(
+            _roles, item_type, "metadata", "tags", "can_delete"
+        )
         return True if role_found else False
 
     def has_create_item_permission(self, item_type: ItemType) -> bool:
-        """
-        Checks if a user has the permission to create a new item in a workspace.
-
-        A user will have permission to create a new item in a workspace if there a role exists for which
-        item_type is {item_type} provided in the argument and action is "create".
-
-        Args:
-            item_type: ItemType enum
-
-        Returns:
-            True id user has the required permission, else False
-        """
         roles = self.get_roles()
 
-        role_found = next(
-            (
-                role
-                for role in roles
-                if role.item_type == item_type and role.action == RoleAction.CREATE
-            ),
-            None,
+        title_permission = self.has_create_title_permission(item_type, roles)
+        description_permission = self.has_create_description_permission(
+            item_type, roles
         )
+        image_permission = self.has_create_image_permission(item_type, roles)
+        tags_permission = self.has_create_tags_permission(item_type, roles)
+        has_create_item_permission = (
+            title_permission
+            and description_permission
+            and image_permission
+            and tags_permission
+        )
+        return has_create_item_permission
 
+    def has_read_items_permission(self, item_type: ItemType) -> bool:
+        roles = self.get_roles()
+
+        title_permission = self.has_read_title_permission(item_type, roles)
+        description_permission = self.has_read_description_permission(item_type, roles)
+        image_permission = self.has_read_image_permission(item_type, roles)
+        tags_permission = self.has_read_tags_permission(item_type, roles)
+        has_read_item_permission = (
+            title_permission
+            and description_permission
+            and image_permission
+            and tags_permission
+        )
+        return has_read_item_permission
+
+    def has_read_file_items_permission(self) -> bool:
+        return self.has_read_items_permission(ItemType.FILE)
+
+    def has_read_project_items_permission(self) -> bool:
+        return self.has_read_items_permission(ItemType.FILE)
+
+    def has_read_report_items_permission(self) -> bool:
+        return self.has_read_items_permission(ItemType.FILE)
+
+    def has_read_workspace_items_permission(self) -> bool:
+        return self.has_read_items_permission(ItemType.FILE)
+
+    def has_read_user_profile_items_permission(self) -> bool:
+        return self.has_read_items_permission(ItemType.FILE)
+
+    def has_read_job_items_permission(self) -> bool:
+        return self.has_read_items_permission(ItemType.FILE)
+
+    def has_read_workflow_items_permission(self) -> bool:
+        return self.has_read_items_permission(ItemType.FILE)
+
+    def has_read_all_items_permission(self) -> bool:
+        permission = (
+            self.has_read_file_items_permission
+            and self.has_read_project_items_permission
+            and self.has_read_report_items_permission
+            and self.has_read_workspace_items_permission
+            and self.has_read_user_profile_items_permission
+            and self.has_read_job_items_permission
+            and self.has_read_workflow_items_permission
+        )
+        return permission
+
+    def has_update_item_permission(self, item_type: ItemType) -> bool:
+        roles = self.get_roles()
+
+        title_permission = self.has_update_title_permission(item_type, roles)
+        description_permission = self.has_update_description_permission(
+            item_type, roles
+        )
+        image_permission = self.has_update_image_permission(item_type, roles)
+        tags_permission = self.has_update_tags_permission(item_type, roles)
+        has_update_item_permission = (
+            title_permission
+            and description_permission
+            and image_permission
+            and tags_permission
+        )
+        return has_update_item_permission
+
+    def has_update_item_field_permission(self, item_type: ItemType, field: str) -> bool:
+        if field == "title":
+            return self.has_update_title_permission(item_type)
+        if field == "description":
+            return self.has_update_description_permission(item_type)
+        if field == "image":
+            return self.has_update_image_permission(item_type)
+        if field == "tags":
+            return self.has_update_tags_permission(item_type)
+        return False
+
+    def has_delete_item_permission(self, item_type: ItemType) -> bool:
+        roles = self.get_roles()
+
+        title_permission = self.has_delete_title_permission(item_type, roles)
+        description_permission = self.has_delete_description_permission(
+            item_type, roles
+        )
+        image_permission = self.has_delete_image_permission(item_type, roles)
+        tags_permission = self.has_delete_tags_permission(item_type, roles)
+        has_delete_item_permission = (
+            title_permission
+            and description_permission
+            and image_permission
+            and tags_permission
+        )
+        return has_delete_item_permission
+
+    def has_create_content_permission(
+        self, item_type: ItemType, field: Optional[str] = None
+    ) -> bool:
+        roles = self.get_roles()
+        role_found = self._find_role(
+            roles, item_type, "content", field or "all", "can_create"
+        )
         return True if role_found else False
 
-    def has_share_item_to_workspace_permission(self):
-        is_system_admin_role = self.is_system_administrator_role()
-        is_admin_role = self.is_admin_role()
-        is_private_user_role = self.is_private_user_role()
+    def has_read_content_permission(
+        self, item_type: ItemType, field: Optional[str] = None
+    ) -> bool:
+        roles = self.get_roles()
+        role_found = self._find_role(
+            roles, item_type, "content", field or "all", "can_read"
+        )
+        return True if role_found else False
 
-        return is_system_admin_role or is_admin_role or is_private_user_role
+    def has_update_content_permission(
+        self, item_type: ItemType, field: Optional[str] = None
+    ) -> bool:
+        roles = self.get_roles()
+        role_found = self._find_role(
+            roles, item_type, "content", field or "all", "can_update"
+        )
+        return True if role_found else False
 
-    def has_add_user_to_workspace_permission(self):
-        is_system_admin_role = self.is_system_administrator_role()
-        is_admin_role = self.is_admin_role()
+    def has_delete_content_permission(
+        self, item_type: ItemType, field: Optional[str] = None
+    ) -> bool:
+        roles = self.get_roles()
+        role_found = self._find_role(
+            roles, item_type, "content", field or "all", "can_delete"
+        )
+        return True if role_found else False
 
-        return is_system_admin_role or is_admin_role
-
-    def has_update_profile_status_permission(self):
-        return self.is_system_administrator_role()
-
-    def is_private_user_role(self) -> bool:
-        relations_resp = self.relations_repo.get_relations_by_source_id_and_target_id(
-            self.workspace_id, self.user_id
+    def insert_role(
+        self,
+        title: str,
+        description: str,
+        image: str,
+        tags: List[str],
+        permissions: List[NewRoleSchema],
+    ) -> InsertRoleResponse:
+        has_create_item_permission = self.has_create_item_permission(ItemType.ROLE)
+        has_create_content_permission = self.has_create_content_permission(
+            ItemType.ROLE
         )
 
-        if len(relations_resp) <= 0:
-            return False
-
-        relation = relations_resp[0].relation
-
-        if not "role." in relation:
-            # if source_id is a workspace id and target_id is a user id, then the relation is saved as 'role.<some_role_id>' in the database.
-            # So, the string "role." should be present in the relation
-            return False
-
-        # Remove first 05 characters from the relation to get the role_id
-        role_id = relation[5:]
-
-        item = self.item_repo.get_item_by_id(role_id)
-
-        if not item:
-            return False
-
-        system_key = item.system_key
-
-        if system_key != "private_user_role":
-            return False
-
-        return True
-
-    def is_admin_role(self) -> bool:
-        # return self.user_id == "dd58b077-bbc2-4dbf-97a6-5f8be5d23c98"
-        relations_resp = self.relations_repo.get_relations_by_source_id_and_target_id(
-            self.workspace_id, self.user_id
+        has_create_role_permission = (
+            has_create_item_permission and has_create_content_permission
         )
 
-        if len(relations_resp) <= 0:
-            return False
+        if not has_create_role_permission:
+            raise HTTPException(
+                status_code=403,
+                detail=f"You don't have the permission to create role in this workspace.",
+            )
 
-        relation = relations_resp[0].relation
-
-        if not "role." in relation:
-            # if source_id is a workspace id and target_id is a user id, then the relation is saved as 'role.<some_role_id>' in the database.
-            # So, the string "role." should be present in the relation
-            return []
-
-        # Remove first 05 characters from the relation to get the role_id
-        role_id = relation[5:]
-
-        item = self.item_repo.get_item_by_id(role_id)
-
-        if not item:
-            return False
-
-        system_key = item.system_key
-
-        if system_key != "workspace_admin_role":
-            return False
-
-        return True
-
-    def is_system_administrator_role(self) -> bool:
-        # return self.user_id == "260f0217-32ab-4a07-a428-0f9cfdfe20b3"
-        relations_resp = self.relations_repo.get_relations_by_source_id_and_target_id(
-            self.workspace_id, self.user_id
+        item = NewItemSchema(
+            title=title,
+            item_type=ItemType.ROLE,
+            description=description,
+            image=image,
+            tags=tags,
         )
+        new_item_response = self.item_repo.insert_items([item])
+        new_item = new_item_response[0]
+        new_item_id = new_item.id
 
-        if len(relations_resp) <= 0:
-            return False
+        new_roles = []
+        for permission in permissions:
+            new_role = RoleSchema(
+                id=new_item_id,
+                item_type=permission.item_type,
+                scope=permission.scope,
+                field=permission.field,
+                can_create=permission.can_create,
+                can_read=permission.can_read,
+                can_update=permission.can_update,
+                can_delete=permission.can_delete,
+            )
+            new_roles.append(new_role)
 
-        relation = relations_resp[0].relation
-
-        if not "role." in relation:
-            # if source_id is a workspace id and target_id is a user id, then the relation is saved as 'role.<some_role_id>' in the database.
-            # So, the string "role." should be present in the relation
-            return False
-
-        # Remove first 05 characters from the relation to get the role_id
-        role_id = relation[5:]
-
-        item = self.item_repo.get_item_by_id(role_id)
-
-        if not item:
-            return False
-
-        system_key = item.system_key
-
-        if system_key != "system_administrator_role":
-            return False
-
-        return True
+        role = self.repo.insert_roles(new_roles)
+        return InsertRoleResponse(item=new_item, role=role)

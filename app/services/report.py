@@ -67,7 +67,8 @@ class ReportService:
 
         if not has_create_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to create report."
+                status_code=403,
+                detail="You don't have the permission to create report in this workspace.",
             )
 
         item = NewItemSchema(
@@ -163,7 +164,8 @@ class ReportService:
 
         if not has_edit_report_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to edit report."
+                status_code=403,
+                detail="You don't have the permission to edit report in this workspace.",
             )
 
         updated_report = self.repo.update_report(report_id, field_name, field_value)

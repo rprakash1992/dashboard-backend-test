@@ -23,7 +23,6 @@ from app.services.relation import RelationService
 from app.services.item import ItemService
 from app.services.argo_client import ArgoClientService
 
-
 settings = get_settings()
 
 
@@ -176,7 +175,7 @@ class WorkflowService:
         if not has_create_permission:
             raise HTTPException(
                 status_code=403,
-                detail="Unauthorized: Not permitted to create workflow.",
+                detail="You don't have the permission to create workflow in this workspace.",
             )
 
         result = self._prepare_workflow_creation(
@@ -196,7 +195,7 @@ class WorkflowService:
         # s3_key = result.s3_key
 
         deployment_id = "extract-zip-workflow-with-folder-structure"
-        
+
         flow_run = await self.prefect_client_service.trigger_extract_zip_with_folder_structure_flow(
             deployment_id,
             loggedin_user_id=loggedin_user_id,
@@ -231,7 +230,7 @@ class WorkflowService:
         if not has_update_contents_permission:
             raise HTTPException(
                 status_code=403,
-                detail="Unauthorized: Not permitted to update workflow.",
+                detail="You don't have the permission to update workflow content in this workspace.",
             )
 
         return self.repo.update_workflow_record(workflow)

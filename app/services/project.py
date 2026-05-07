@@ -41,7 +41,8 @@ class ProjectService:
 
         if not has_create_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to create project."
+                status_code=403,
+                detail="You don't have the permission to create project in this workspace.",
             )
 
         item = NewItemSchema(

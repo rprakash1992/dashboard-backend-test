@@ -20,7 +20,6 @@ from app.services.relation import RelationService
 from app.services.item import ItemService
 from app.services.argo_client import ArgoClientService
 
-
 settings = get_settings()
 
 
@@ -51,7 +50,8 @@ class JobService:
 
         if not has_create_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to create job."
+                status_code=403,
+                detail="You don't have the permission to create job in this workspace.",
             )
 
         item = NewItemSchema(
@@ -92,7 +92,8 @@ class JobService:
 
         if not has_create_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to create job."
+                status_code=403,
+                detail="You don't have the permission to create job in this workspace.",
             )
 
         flow_record = self.workflow_repo.get_workflow_by_id(workflow_id)
@@ -106,8 +107,10 @@ class JobService:
         workflow_validity = flow_record.is_valid
         if not workflow_validity:
             raise HTTPException(status_code=400, detail="Workflow is not valid.")
-        
-        flow_run = await self.argo_client.trigger_user_flow(settings.aws_s3_bucket, flow_record.s3_key, workflow_parameters)
+
+        flow_run = await self.argo_client.trigger_user_flow(
+            settings.aws_s3_bucket, flow_record.s3_key, workflow_parameters
+        )
         insert_job_response = self.insert_job(
             selected_workspace_id,
             loggedin_user_id,
@@ -146,7 +149,7 @@ class JobService:
         if not has_read_contents_permission:
             raise HTTPException(
                 status_code=403,
-                detail="Unauthorized: Not permitted to access job content.",
+                detail="You don't have the permission to access job content in this workspace.",
             )
 
         jobs = self.repo.get_jobs_by_ids(job_ids)
@@ -196,7 +199,7 @@ class JobService:
         run_id = job.run_id
 
         flow_run = await self.argo_client.get_flow_run(run_id)
-        
+
         return JobResponseSchema(
             id=job.id,
             job_type=job.job_type,
@@ -206,7 +209,7 @@ class JobService:
             run_details=flow_run,
             output_item_id=output_item_id,
         )
-        
+
     async def get_job_id_by_output_item_id(
         self,
         selected_workspace_id: str,
@@ -232,7 +235,6 @@ class JobService:
         relation = relations[0]
         job_id = relation.source_id
         return job_id
-        
 
     def update_job_field_by_id(
         self,
@@ -249,7 +251,8 @@ class JobService:
 
         if not has_update_contents_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to update job."
+                status_code=403,
+                detail="You don't have the permission to update job content in this workspace.",
             )
 
         return self.repo.update_job_by_id(job_id, field_name, field_val)

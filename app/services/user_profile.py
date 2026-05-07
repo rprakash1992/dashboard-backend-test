@@ -69,7 +69,7 @@ class UserProfileService:
             item_type="workspace",
             last_modified_at=None,
             deleted_at=None,
-            system_key="user_personal_workspace"
+            system_key="user_personal_workspace",
         )
         self.db.add(new_personal_workspace_item)
         self.db.commit()
@@ -80,20 +80,28 @@ class UserProfileService:
         # )
         # private_user_role_id = private_user_role_item.id
         # private_user_role_id = "b10f062e-fb7f-4a83-9c00-d95df1cea12f"
-        private_user_role = self.db.query(Item).filter(Item.system_key == "private_user_role").first()
+        private_user_role = (
+            self.db.query(Item).filter(Item.system_key == "private_user_role").first()
+        )
         private_user_role_id = private_user_role.id
-        
+
         # personal_workspace_item = (
         #     self.db.query(Item).filter(Item.title == "personal").first()
         # )
         # personal_workspace_id = personal_workspace_item.id
-        personal_workspace_item = self.db.query(Item).filter(Item.system_key == "personal_workspace").first()
+        personal_workspace_item = (
+            self.db.query(Item).filter(Item.system_key == "personal_workspace").first()
+        )
         personal_workspace_id = personal_workspace_item.id
-        
-        system_administrator_workspace = self.db.query(Item).filter(Item.system_key == "system_administrator_workspace").first()
+
+        system_administrator_workspace = (
+            self.db.query(Item)
+            .filter(Item.system_key == "system_administrator_workspace")
+            .first()
+        )
         system_administrator_workspace_id = system_administrator_workspace.id
         reviewer_role_id = "1f004b8b-cb07-42b9-814a-c5a157f8ab8c"
-        
+
         workspace_workspace_relation = Relation(
             source_id=personal_workspace_id,
             target_id=new_personal_workspace_item.id,
@@ -107,9 +115,15 @@ class UserProfileService:
         admin_wworkspace_user_relation = Relation(
             source_id=system_administrator_workspace_id,
             target_id=new_user_profile.id,
-            relation=f"role.{reviewer_role_id}"
+            relation=f"role.{reviewer_role_id}",
         )
-        self.db.add_all([workspace_workspace_relation, workspace_user_relation, admin_wworkspace_user_relation])
+        self.db.add_all(
+            [
+                workspace_workspace_relation,
+                workspace_user_relation,
+                admin_wworkspace_user_relation,
+            ]
+        )
         self.db.commit()
 
         import asyncio
@@ -199,7 +213,8 @@ class UserProfileService:
 
         if not has_update_profile_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to update profile."
+                status_code=403,
+                detail="You don't have the permission to update profile content in this workspace.",
             )
 
         profile = self.repo.get_user_profile_by_user_id(profile_id)
@@ -211,7 +226,9 @@ class UserProfileService:
         if field_name == "status":
             # status can only be updated by system_administrator
             has_update_profile_status_permission = (
-                role_service.has_update_profile_status_permission()
+                role_service.has_update_content_permission(
+                    ItemType.USERPROFILE, "status"
+                )
             )
             if not has_update_profile_status_permission:
                 raise HTTPException(
@@ -268,7 +285,8 @@ class UserProfileService:
 
         if not is_updating_own_profile:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to update profile."
+                status_code=403,
+                detail="You don't have the permission to update profile in this workspace.",
             )
 
         role_service = RoleService(selected_workspace_id, loggedin_user_id, self.db)
@@ -285,7 +303,8 @@ class UserProfileService:
 
         if not has_update_profile_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to update profile."
+                status_code=403,
+                detail="You don't have the permission to update profile in this workspace.",
             )
 
         name = profile.name

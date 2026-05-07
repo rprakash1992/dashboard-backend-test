@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, field_validator
-from typing import Optional, List
-from enum import Enum
+from typing import List
 from uuid import UUID
+from app.schemas.item import ItemSchema
 
 
 class RoleSchema(BaseModel):
@@ -9,9 +9,13 @@ class RoleSchema(BaseModel):
 
     id: str
     item_type: str
-    action: str
-    sections: Optional[List[str]] = None
-    
+    scope: str
+    field: str
+    can_create: bool = False
+    can_read: bool = False
+    can_update: bool = False
+    can_delete: bool = False
+
     @field_validator("id", mode="before")
     @classmethod
     def coerce_uuid_to_str(cls, v):
@@ -20,11 +24,21 @@ class RoleSchema(BaseModel):
         return v
 
 
-class RoleAction(str, Enum):
-    READ_ITEMS = "read_items"
-    READ_METADATA = "read_metadata"
-    READ_CONTENTS = "read_contents"
-    UPDATE_METADATA = "update_metadata"
-    UPDATE_CONTENTS = "update_contents"
-    DELETE = "delete"
-    CREATE = "create"
+class NewRoleSchema(BaseModel):
+    item_type: str
+    scope: str
+    field: str
+    can_create: bool = False
+    can_read: bool = False
+    can_update: bool = False
+    can_delete: bool = False
+
+
+class RoleScope(str):
+    METADATA = "metadata"
+    CONTENT = "content"
+
+
+class InsertRoleResponse(BaseModel):
+    item: ItemSchema
+    role: List[RoleSchema]

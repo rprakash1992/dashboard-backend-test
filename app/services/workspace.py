@@ -35,12 +35,13 @@ class WorkspaceService:
     ) -> ItemSchema:
         role_service = RoleService(selected_workspace_id, loggedin_user_id, self.db)
         has_create_permission = role_service.has_create_item_permission(
-            ItemType.PROJECT
+            ItemType.WORKSPACE
         )
 
         if not has_create_permission:
             raise HTTPException(
-                status_code=403, detail="Unauthorized: Not permitted to create project."
+                status_code=403,
+                detail="You don't have the permission to create a workspace in this workspace.",
             )
 
         new_item = NewItemSchema(
@@ -115,12 +116,15 @@ class WorkspaceService:
         role_id_to_assign: str,
     ) -> ItemSchema:
         role_service = RoleService(workspace_id, loggedin_user_id, self.db)
-        has_add_user_permission = role_service.has_add_user_to_workspace_permission()
+        has_add_user_permission = role_service.has_create_item_permission(
+            ItemType.USERPROFILE
+        )
+        # has_add_user_permission = role_service.has_add_user_to_workspace_permission()
 
         if not has_add_user_permission:
             raise HTTPException(
                 status_code=403,
-                detail="Unauthorized: Ypu are not permitted to add users to this workspace.",
+                detail="Unauthorized: You don't have the permission to add users to this workspace.",
             )
 
         new_relation = RelationSchema(
@@ -135,7 +139,8 @@ class WorkspaceService:
             return self.item_repo.get_item_by_id(user_id_to_add)
         except IntegrityError:
             raise HTTPException(
-                status_code=409, detail="User is already present in this workspace."
+                status_code=409,
+                detail="This user is already present in this workspace.",
             )
 
     def add_item_to_workspace(
@@ -145,10 +150,13 @@ class WorkspaceService:
         workspace_id: str,
         item_id: str,
     ) -> bool:
+        item = self.item_repo.get_item_by_id(item_id)
+        item_type = item.item_type
         role_service = RoleService(workspace_id, loggedin_user_id, self.db)
-        has_share_item_permission = (
-            role_service.has_share_item_to_workspace_permission()
-        )
+        has_share_item_permission = role_service.has_create_item_permission(item_type)
+        # has_share_item_permission = (
+        #     role_service.has_share_item_to_workspace_permission()
+        # )
 
         if not has_share_item_permission:
             raise HTTPException(
@@ -167,12 +175,11 @@ class WorkspaceService:
         except IntegrityError:
             raise HTTPException(
                 status_code=409,
-                detail="Item already exists in the workspace to which it is being shared.",
+                detail="This item already exists in the workspace to which it is being shared.",
             )
 
         return True
-    
-    
+
     def fetch_workspace_users(
         self,
         selected_workspace_id: str,
@@ -180,22 +187,20 @@ class WorkspaceService:
         workspace_id: str,
     ) -> List[ItemSchema]:
         role_service = RoleService(workspace_id, loggedin_user_id, self.db)
-        has_read_items_permission = (
-            role_service.has_read_items_permission()
+        has_read_items_permission = role_service.has_read_items_permission(
+            ItemType.USERPROFILE
         )
 
         if not has_read_items_permission:
             raise HTTPException(
                 status_code=403,
-                detail="You don't have the permission to read items of this workspace.",
+                detail="You don't have the permission to view users of this workspace.",
             )
-            
+
         relation_response = (
             self.relation_repo.get_relations_by_source_id_ilike_relation(
                 workspace_id, "%role%"
             )
         )
-        target_user_profile_ids = [
-            relation.target_id for relation in relation_response
-        ]
+        target_user_profile_ids = [relation.target_id for relation in relation_response]
         return self.item_repo.get_items_by_ids(target_user_profile_ids)
