@@ -8,7 +8,7 @@ from app.repositories.database_dashboard.relation import RelationRepository
 from app.repositories.database_dashboard.item import ItemRepository
 
 # import schemas
-from app.schemas.item import ItemType, NewItemSchema, ItemSchema
+from app.schemas.item import ItemType, NewItemSchema, ItemSchema, WorkspaceUserSchema
 from app.schemas.relation import RelationType
 
 # import services
@@ -114,7 +114,7 @@ class WorkspaceService:
         workspace_id: str,
         user_id_to_add: str,
         role_id_to_assign: str,
-    ) -> ItemSchema:
+    ) -> WorkspaceUserSchema:
         role_service = RoleService(workspace_id, loggedin_user_id, self.db)
         has_add_user_permission = role_service.has_create_item_permission(
             ItemType.USERPROFILE
@@ -133,15 +133,53 @@ class WorkspaceService:
             relation=f"role.{role_id_to_assign}",
         )
 
-        self.relation_repo.insert_relations([new_relation])
+        # self.relation_repo.insert_relations([new_relation])
 
         try:
-            return self.item_repo.get_item_by_id(user_id_to_add)
+            self.relation_repo.insert_relations([new_relation])
+            items = self.item_repo.get_item_by_id([user_id_to_add, role_id_to_assign])
+            return WorkspaceUserSchema(user=items[0], role=items[1])
         except IntegrityError:
             raise HTTPException(
                 status_code=409,
                 detail="This user is already present in this workspace.",
             )
+
+    def update_workspace_user_role(
+        self,
+        selected_workspace_id: str,
+        loggedin_user_id: str,
+        workspace_id: str,
+        user_id_to_update: str,
+        new_role_id_to_assign: str,
+    ) -> WorkspaceUserSchema:
+        if str(loggedin_user_id) == str(user_id_to_update):
+            raise HTTPException(
+                status_code=403,
+                detail="You cannot update your own role.",
+            )
+
+        role_service = RoleService(workspace_id, loggedin_user_id, self.db)
+        has_add_user_permission = role_service.has_create_item_permission(
+            ItemType.USERPROFILE
+        )
+
+        if not has_add_user_permission:
+            raise HTTPException(
+                status_code=403,
+                detail="Unauthorized: You don't have the permission to edit user role in this workspace.",
+            )
+
+        self.relation_repo.update_relation(
+            workspace_id, user_id_to_update, f"role.{new_role_id_to_assign}"
+        )
+        items = self.item_repo.get_items_by_ids(
+            [user_id_to_update, new_role_id_to_assign]
+        )
+        items_by_id = {item.id: item for item in items}
+        user_item = items_by_id[user_id_to_update]
+        role_item = items_by_id[new_role_id_to_assign]
+        return WorkspaceUserSchema(user=user_item, role=role_item)
 
     def add_item_to_workspace(
         self,
@@ -185,7 +223,8 @@ class WorkspaceService:
         selected_workspace_id: str,
         loggedin_user_id: str,
         workspace_id: str,
-    ) -> List[ItemSchema]:
+    ) -> List[WorkspaceUserSchema]:
+        # ) -> List[ItemSchema]:
         role_service = RoleService(workspace_id, loggedin_user_id, self.db)
         has_read_items_permission = role_service.has_read_items_permission(
             ItemType.USERPROFILE
@@ -203,4 +242,16 @@ class WorkspaceService:
             )
         )
         target_user_profile_ids = [relation.target_id for relation in relation_response]
-        return self.item_repo.get_items_by_ids(target_user_profile_ids)
+        user_role_ids = [relation.relation[5:] for relation in relation_response]
+        items = self.item_repo.get_items_by_ids(target_user_profile_ids)
+        roles = self.item_repo.get_items_by_ids(user_role_ids)
+        items_by_id = {item.id: item for item in items}
+        roles_by_id = {role.id: role for role in roles}
+        users = []
+        for relation in relation_response:
+            user_item = items_by_id.get(relation.target_id)
+            role_item = roles_by_id.get(relation.relation[5:])
+            if user_item and role_item:
+                users.append(WorkspaceUserSchema(user=user_item, role=role_item))
+        return users
+        # return self.item_repo.get_items_by_ids(target_user_profile_ids)

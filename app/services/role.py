@@ -105,7 +105,7 @@ class RoleService:
         )
         return True if role_found else False
 
-    def has_dalete_title_permission(
+    def has_delete_title_permission(
         self, item_type: ItemType, roles: Optional[Any] = None
     ) -> bool:
         _roles = roles or self.get_roles()
@@ -141,7 +141,7 @@ class RoleService:
         )
         return True if role_found else False
 
-    def has_dalete_description_permission(
+    def has_delete_description_permission(
         self, item_type: ItemType, roles: Optional[Any] = None
     ) -> bool:
         _roles = roles or self.get_roles()
@@ -175,7 +175,7 @@ class RoleService:
         )
         return True if role_found else False
 
-    def has_dalete_image_permission(
+    def has_delete_image_permission(
         self, item_type: ItemType, roles: Optional[Any] = None
     ) -> bool:
         _roles = roles or self.get_roles()
@@ -209,7 +209,7 @@ class RoleService:
         )
         return True if role_found else False
 
-    def has_dalete_tags_permission(
+    def has_delete_tags_permission(
         self, item_type: ItemType, roles: Optional[Any] = None
     ) -> bool:
         _roles = roles or self.get_roles()

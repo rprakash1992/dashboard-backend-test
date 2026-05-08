@@ -446,6 +446,53 @@ class ItemService:
 
         return updated_item
 
+    def _is_file_deletable(self, item_id: str) -> bool:
+        file_traceability = self._fetch_file_traceability(item_id)
+        traceability_data = file_traceability.traceability_data
+        projects = traceability_data.projects
+        return False if len(projects) > 0 else True
+
+    def _is_project_deletabe(self, item_id: str) -> bool:
+        file_traceability = self._fetch_project_traceability(item_id)
+        traceability_data = file_traceability.traceability_data
+        reports = traceability_data.reports
+        return False if len(reports) > 0 else True
+
+    def _is_report_deletable(self, item_id: str) -> bool:
+        file_traceability = self._fetch_report_traceability(item_id)
+        traceability_data = file_traceability.traceability_data
+        projects = traceability_data.projects
+        return False if len(projects) > 0 else True
+
+    def _is_workspace_deletable(self, item_id: str, loggedin_user_id: str) -> bool:
+        relations = self.relation_repo.get_relations_by_source_id(item_id)
+        are_items_in_workspace = False
+        for relation in relations:
+            if relation.target_id != loggedin_user_id:
+                are_items_in_workspace = True
+
+        return False if are_items_in_workspace else True
+
+    def _is_role_deletable(self, item_id: str) -> bool:
+        relations = self.relation_repo.get_relations_by_relation(f"role.{item_id}")
+        return False if len(relations) > 0 else True
+
+    def _is_item_deletable(
+        self, item_id: str, loggedin_user_id: str, item_type: ItemType
+    ) -> bool:
+        if item_type == ItemType.FILE:
+            return self._is_file_deletable(item_id)
+        elif item_type == ItemType.PROJECT:
+            return self._is_project_deletabe(item_id)
+        elif item_type == ItemType.REPORT:
+            return self._is_report_deletable(item_id)
+        elif item_type == ItemType.WORKSPACE:
+            return self._is_workspace_deletable(item_id, loggedin_user_id)
+        elif item_type == ItemType.ROLE:
+            return self._is_role_deletable(item_id)
+        else:
+            return False
+
     def delete_item(
         self,
         selected_workspace_id: str,
@@ -460,6 +507,14 @@ class ItemService:
             raise HTTPException(
                 status_code=403,
                 detail=f"You don't have the permission to delete {item_type}s in this workspace.",
+            )
+
+        can_delete = self._is_item_deletable(item_id, loggedin_user_id, item_type)
+
+        if not can_delete:
+            raise HTTPException(
+                status_code=403,
+                detail=f"This item cannot be deleted.",
             )
 
         current_time = get_current_time()

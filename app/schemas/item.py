@@ -83,3 +83,8 @@ class TraceabilityRespSchema(BaseModel):
         JobTraceabilityData,
         WorkflowTraceabilityData,
     ]
+
+
+class WorkspaceUserSchema(BaseModel):
+    user: ItemSchema
+    role: ItemSchema
