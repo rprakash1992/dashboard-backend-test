@@ -104,7 +104,7 @@ async def add_user_to_workspace(
     role_id = body.role_id
     workspace_id = body.workspace_id
 
-    if not (selected_workspace_id and user_id and role_id):
+    if not (selected_workspace_id and workspace_id and user_id and role_id):
         raise HTTPException(status_code=400, detail="Invalid arguments.")
 
     workspace_service = WorkspaceService(db)

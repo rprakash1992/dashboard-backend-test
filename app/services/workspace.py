@@ -137,8 +137,9 @@ class WorkspaceService:
 
         try:
             self.relation_repo.insert_relations([new_relation])
-            items = self.item_repo.get_item_by_id([user_id_to_add, role_id_to_assign])
-            return WorkspaceUserSchema(user=items[0], role=items[1])
+            user = self.item_repo.get_item_by_id(user_id_to_add)
+            role = self.item_repo.get_item_by_id(role_id_to_assign)
+            return WorkspaceUserSchema(user=user, role=role)
         except IntegrityError:
             raise HTTPException(
                 status_code=409,
@@ -173,13 +174,9 @@ class WorkspaceService:
         self.relation_repo.update_relation(
             workspace_id, user_id_to_update, f"role.{new_role_id_to_assign}"
         )
-        items = self.item_repo.get_items_by_ids(
-            [user_id_to_update, new_role_id_to_assign]
-        )
-        items_by_id = {item.id: item for item in items}
-        user_item = items_by_id[user_id_to_update]
-        role_item = items_by_id[new_role_id_to_assign]
-        return WorkspaceUserSchema(user=user_item, role=role_item)
+        user = self.item_repo.get_item_by_id(user_id_to_update)
+        role = self.item_repo.get_item_by_id(new_role_id_to_assign)
+        return WorkspaceUserSchema(user=user, role=role)
 
     def add_item_to_workspace(
         self,
